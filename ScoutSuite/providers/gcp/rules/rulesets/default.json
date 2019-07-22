@@ -121,6 +121,7 @@
         ],
         "computeengine-firewall-rule-allows-public-access.json": [
             {
+                "args": [[]],
                 "enabled": true,
                 "level": "warning"
             }
