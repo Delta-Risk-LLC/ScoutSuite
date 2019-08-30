@@ -74,6 +74,12 @@ class ScoutSuiteArgumentParser:
                                            default=[],
                                            nargs='+',
                                            help='Name of regions to run the tool in, defaults to all')
+        aws_additional_parser.add_argument('-xr',
+                                           '--exclude-regions',
+                                           dest='excluded_regions',
+                                           default=[],
+                                           nargs='+',
+                                           help='Name of regions to excluded from execution')
         aws_additional_parser.add_argument('--ip-ranges',
                                            dest='ip_ranges',
                                            default=[],
@@ -241,6 +247,11 @@ class ScoutSuiteArgumentParser:
                             default=False,
                             action='store_true',
                             help='Use local data previously fetched and re-run the analysis.')
+        parser.add_argument('--max-rate',
+                            dest='max_rate',
+                            type=int,
+                            default=None,
+                            help='Maximum number of API requests per second')
         parser.add_argument('--debug',
                             dest='debug',
                             default=False,
@@ -299,7 +310,7 @@ class ScoutSuiteArgumentParser:
                             dest='services',
                             default=[],
                             nargs='+',
-                            help='Name of in-scope services.')
+                            help='Name of in-scope services, defaults to all.')
         parser.add_argument('--skip',
                             dest='skipped_services',
                             default=[],

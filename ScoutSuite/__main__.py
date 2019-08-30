@@ -3,6 +3,9 @@ import copy
 import os
 import webbrowser
 
+from asyncio_throttle import Throttler
+from ScoutSuite import ERRORS_LIST
+
 from concurrent.futures import ThreadPoolExecutor
 
 from ScoutSuite.core.cli_parser import ScoutSuiteArgumentParser
@@ -54,7 +57,9 @@ def run_from_cli():
                    host_port=args.get('host_port'),
                    max_workers=args.get('max_workers'),
                    regions=args.get('regions'),
+                   excluded_regions=args.get('excluded_regions'),
                    fetch_local=args.get('fetch_local'), update=args.get('update'),
+                   max_rate=args.get('max_rate'),
                    ip_ranges=args.get('ip_ranges'), ip_ranges_name_key=args.get('ip_ranges_name_key'),
                    ruleset=args.get('ruleset'), exceptions=args.get('exceptions'),
                    force_write=args.get('force_write'),
@@ -91,7 +96,9 @@ def run(provider,
         database_name=None, host_ip='127.0.0.1', host_port=8000,
         max_workers=10,
         regions=[],
+        excluded_regions=[],
         fetch_local=False, update=False,
+        max_rate=None,
         ip_ranges=[], ip_ranges_name_key='name',
         ruleset='default.json', exceptions=None,
         force_write=False,
@@ -105,6 +112,8 @@ def run(provider,
     """
 
     loop = asyncio.get_event_loop()
+    # Set the throttler within the loop so it's accessible later on
+    loop.throttler = Throttler(rate_limit=max_rate if max_rate else 999999, period=1)
     loop.set_default_executor(ThreadPoolExecutor(max_workers=max_workers))
     result = loop.run_until_complete(_run(**locals()))  # pass through all the parameters
     loop.close()
@@ -133,6 +142,7 @@ async def _run(provider,
                result_format,
                database_name, host_ip, host_port,
                regions,
+               excluded_regions,
                fetch_local, update,
                ip_ranges, ip_ranges_name_key,
                ruleset, exceptions,
@@ -176,10 +186,10 @@ async def _run(provider,
                                                  programmatic_execution=programmatic_execution)
 
         if not credentials:
-            return 401
+            return 101
     except Exception as e:
         print_exception('Authentication failure: {}'.format(e))
-        return 401
+        return 101
 
     # Create a cloud provider object
     cloud_provider = get_provider(provider=provider,
@@ -213,7 +223,7 @@ async def _run(provider,
         # Fetch data from provider APIs
         try:
             print_info('Gathering data from APIs')
-            await cloud_provider.fetch(regions=regions)
+            await cloud_provider.fetch(regions=regions, excluded_regions=excluded_regions)
         except KeyboardInterrupt:
             print_info('\nCancelled by user')
             return 130
@@ -275,6 +285,7 @@ async def _run(provider,
         'services': services,
         'skipped_services': skipped_services,
         'regions': regions,
+        'excluded_regions': excluded_regions,
     }
     # Finalize
     cloud_provider.postprocessing(report.current_time, finding_rules, run_parameters)
@@ -289,4 +300,7 @@ async def _run(provider,
         url = 'file://%s' % os.path.abspath(html_report_path)
         webbrowser.open(url, new=2)
 
-    return 0
+    if ERRORS_LIST:  # errors were handled during execution
+        return 200
+    else:
+        return 0
